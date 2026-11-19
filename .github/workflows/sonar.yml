@@ -1,0 +1,33 @@
+# Added by Pixee for C/C++ triage benchmarks (ISS-9982). Runs only on manual dispatch.
+name: Sonar scan
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: https://sonarcloud.io
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: bw
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v8.4.1
+      - run: |
+          "${{ steps.bw.outputs.build-wrapper-binary }}" --out-dir bw-output bash -c '
+            set -e
+            for f in $(find . -path ./windows -prune -o -path "*/target" -prune -o -name "*.c" -print); do
+              gcc -c -w -I"$(dirname "$f")" "$f" -o /tmp/$(echo "$f" | tr "/." "__").o || echo "compile failed: $f"
+            done'
+      - uses: SonarSource/sonarqube-scan-action@v8.4.1
+        with:
+          args: >
+            -Dsonar.organization=pixee-sandbox
+            -Dsonar.projectKey=PixeeSandbox_Damn_Vulnerable_C_Program-commit-8dcbd20
+            -Dsonar.sources=.
+            -Dsonar.exclusions=windows/**,**/target/**,.github/**,**/*.rs
+            -Dsonar.cfamily.compile-commands=bw-output/compile_commands.json
